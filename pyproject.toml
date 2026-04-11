@@ -1,0 +1,29 @@
+[project]
+name = "mcp-htcondor"
+version = "0.1.0"
+description = "MCP server exposing HTCondor job scheduler tools via the smolagents Tool interface"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "BSD-3-Clause"}
+dependencies = [
+    "htcondor>=24.0",
+    "mcp[cli]>=1.0",
+    "smolagents>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+]
+
+[project.scripts]
+mcp-htcondor = "mcp_htcondor.server:run"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.backends.legacy:build"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mcp_htcondor*"]
