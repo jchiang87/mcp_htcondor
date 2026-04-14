@@ -3,9 +3,12 @@
 from .htcondor_tools import (
     ActOnJobsTool,
     GetHtcondorConfigTool,
+    GetLogPathTool,
+    ListAvailableLogsTool,
     LocateScheddsTool,
     QueryJobHistoryTool,
     QueryJobsTool,
+    ReadDaemonLogTool,
     ReadJobEventsTool,
     SubmitDagTool,
     SubmitJobTool,
@@ -20,4 +23,7 @@ __all__ = [
     "LocateScheddsTool",
     "ReadJobEventsTool",
     "GetHtcondorConfigTool",
+    "GetLogPathTool",
+    "ReadDaemonLogTool",
+    "ListAvailableLogsTool",
 ]

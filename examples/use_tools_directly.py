@@ -16,9 +16,12 @@ sys.path.insert(0, ".")  # make mcp_htcondor importable from the repo root
 from mcp_htcondor import (
     ActOnJobsTool,
     GetHtcondorConfigTool,
+    GetLogPathTool,
+    ListAvailableLogsTool,
     LocateScheddsTool,
     QueryJobHistoryTool,
     QueryJobsTool,
+    ReadDaemonLogTool,
     ReadJobEventsTool,
     SubmitDagTool,
     SubmitJobTool,
@@ -36,6 +39,9 @@ act_on_jobs      = ActOnJobsTool()
 locate_schedds   = LocateScheddsTool()
 read_job_events  = ReadJobEventsTool()
 get_config       = GetHtcondorConfigTool()
+list_logs        = ListAvailableLogsTool()
+get_log_path     = GetLogPathTool()
+read_daemon_log  = ReadDaemonLogTool()
 
 
 # ---------------------------------------------------------------------------
@@ -169,3 +175,109 @@ for param in ("COLLECTOR_HOST", "SCHEDD_HOST", "MAX_JOBS_RUNNING"):
     result = json.loads(get_config.forward(param_name=param))
     value = result.get(param, result.get("error", "not set"))
     print(f"  {param} = {value}")
+
+
+# ---------------------------------------------------------------------------
+# 11. List all available daemon logs
+# ---------------------------------------------------------------------------
+
+print("\n" + "="*60)
+print("DAEMON LOG INSPECTION EXAMPLES")
+print("="*60)
+
+result = json.loads(list_logs.forward())
+print(f"\nFound {result['count']} configured daemon log(s):")
+for log_entry in result["logs"]:
+    exists_marker = "✓" if log_entry.get("exists") else "✗"
+    print(f"  {exists_marker} {log_entry['type']:20s}  {log_entry.get('path', 'not configured')}")
+
+
+# ---------------------------------------------------------------------------
+# 12. Get the path for a specific daemon log
+# ---------------------------------------------------------------------------
+
+result = json.loads(get_log_path.forward(log_type="SCHEDD_LOG"))
+if "error" in result:
+    print(f"\nGet SCHEDD_LOG path failed: {result['error']}")
+else:
+    print(f"\nSCHEDD_LOG configuration:")
+    print(f"  Path: {result.get('path')}")
+    print(f"  Exists: {result.get('exists')}")
+
+
+# ---------------------------------------------------------------------------
+# 13. Read last 20 lines from the Schedd log
+# ---------------------------------------------------------------------------
+
+# Only try to read if the log exists
+result = json.loads(get_log_path.forward(log_type="SCHEDD_LOG"))
+if not result.get("error") and result.get("exists"):
+    schedd_log_path = result["path"]
+
+    result = json.loads(read_daemon_log.forward(
+        log_path=schedd_log_path,
+        lines=20,
+    ))
+
+    if "error" in result:
+        print(f"\nRead SCHEDD_LOG failed: {result['error']}")
+    else:
+        print(f"\nLast {result['count']} lines from SCHEDD_LOG:")
+        print(f"  (Truncated: {result['truncated']})")
+        for i, line in enumerate(result["lines"], 1):
+            # Show just first 100 chars to keep output readable
+            display_line = line[:100] + "..." if len(line) > 100 else line
+            print(f"  {i:2d}. {display_line}")
+else:
+    print("\nSkipping SCHEDD_LOG read (log not configured or doesn't exist)")
+
+
+# ---------------------------------------------------------------------------
+# 14. Search for ERROR or WARNING messages in Schedd log
+# ---------------------------------------------------------------------------
+
+result = json.loads(get_log_path.forward(log_type="SCHEDD_LOG"))
+if not result.get("error") and result.get("exists"):
+    schedd_log_path = result["path"]
+
+    result = json.loads(read_daemon_log.forward(
+        log_path=schedd_log_path,
+        lines=100,
+        filter_pattern=r"ERROR|WARNING|WARN",
+    ))
+
+    if "error" in result:
+        print(f"\nSearch SCHEDD_LOG for errors failed: {result['error']}")
+    else:
+        print(f"\nFound {result['count']} ERROR/WARNING message(s) in last 100 lines of SCHEDD_LOG:")
+        for i, line in enumerate(result["lines"][:10], 1):  # Show first 10
+            display_line = line[:120] + "..." if len(line) > 120 else line
+            print(f"  {i:2d}. {display_line}")
+        if result['count'] > 10:
+            print(f"  ... and {result['count'] - 10} more")
+else:
+    print("\nSkipping SCHEDD_LOG error search (log not configured or doesn't exist)")
+
+
+# ---------------------------------------------------------------------------
+# 15. Read Collector log if available
+# ---------------------------------------------------------------------------
+
+result = json.loads(get_log_path.forward(log_type="COLLECTOR_LOG"))
+if not result.get("error") and result.get("exists"):
+    collector_log_path = result["path"]
+
+    result = json.loads(read_daemon_log.forward(
+        log_path=collector_log_path,
+        lines=10,
+    ))
+
+    if "error" in result:
+        print(f"\nRead COLLECTOR_LOG failed: {result['error']}")
+    else:
+        print(f"\nLast {result['count']} lines from COLLECTOR_LOG:")
+        for i, line in enumerate(result["lines"], 1):
+            display_line = line[:100] + "..." if len(line) > 100 else line
+            print(f"  {i:2d}. {display_line}")
+else:
+    print("\nSkipping COLLECTOR_LOG read (log not configured or doesn't exist)")

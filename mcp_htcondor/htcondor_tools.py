@@ -45,6 +45,94 @@ def _ad_to_dict(ad) -> dict:
     return result
 
 
+def _read_log_file_tail(
+    log_path: str,
+    num_lines: int = 100,
+    filter_pattern: Optional[str] = None,
+    start_from: Optional[str] = None,
+) -> tuple[list[str], bool]:
+    """Read last N lines from a log file with optional filtering.
+
+    Args:
+        log_path: Path to the log file to read.
+        num_lines: Number of lines to return from the end of the file.
+        filter_pattern: Optional regex pattern to filter lines.
+        start_from: Optional ISO timestamp - only return lines after this time.
+
+    Returns:
+        Tuple of (lines, truncated) where truncated indicates if the file
+        had more lines than num_lines before filtering.
+    """
+    import os
+    import re
+    from collections import deque
+    from datetime import datetime
+
+    if not os.path.exists(log_path):
+        raise FileNotFoundError(f"Log file not found: {log_path}")
+
+    if not os.access(log_path, os.R_OK):
+        raise PermissionError(f"Permission denied reading: {log_path}")
+
+    # Compile regex pattern if provided
+    pattern = None
+    if filter_pattern:
+        try:
+            pattern = re.compile(filter_pattern)
+        except re.error as e:
+            raise ValueError(f"Invalid regex pattern: {e}")
+
+    # Parse start_from timestamp if provided
+    start_dt = None
+    if start_from:
+        try:
+            start_dt = datetime.fromisoformat(start_from)
+        except ValueError as e:
+            raise ValueError(f"Invalid ISO timestamp: {e}")
+
+    # Read file using deque for efficient tail operation
+    all_lines = deque(maxlen=num_lines * 10)  # Buffer larger to handle filtering
+    with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
+        for line in f:
+            all_lines.append(line.rstrip('\n'))
+
+    total_lines = len(all_lines)
+
+    # Apply filters
+    filtered_lines = []
+    for line in all_lines:
+        # Skip if pattern doesn't match
+        if pattern and not pattern.search(line):
+            continue
+
+        # Skip if before start_from timestamp
+        # HTCondor logs typically start with MM/DD/YY HH:MM:SS
+        if start_dt:
+            # Try to extract timestamp from line (best effort)
+            # HTCondor format: "12/25/23 14:30:45 ..."
+            try:
+                parts = line.split(None, 2)
+                if len(parts) >= 2:
+                    date_str = f"{parts[0]} {parts[1]}"
+                    line_dt = datetime.strptime(date_str, "%m/%d/%y %H:%M:%S")
+                    # Add year context if needed (HTCondor logs use 2-digit year)
+                    if line_dt > datetime.now():
+                        line_dt = line_dt.replace(year=line_dt.year - 100)
+                    if line_dt < start_dt:
+                        continue
+            except (ValueError, IndexError):
+                # If we can't parse timestamp, include the line
+                pass
+
+        filtered_lines.append(line)
+
+    # Return last num_lines after filtering
+    result_lines = filtered_lines[-num_lines:] if len(filtered_lines) > num_lines else filtered_lines
+    truncated = len(filtered_lines) > num_lines or total_lines >= num_lines * 10
+
+    return result_lines, truncated
+
+
 # ---------------------------------------------------------------------------
 # Tools
 # ---------------------------------------------------------------------------
@@ -477,3 +565,248 @@ class GetHtcondorConfigTool(Tool):
             return json.dumps(dict(htcondor.param))
         except Exception as exc:
             return json.dumps({"error": str(exc)})
+
+
+class GetLogPathTool(Tool):
+    """Get the configured filesystem path for HTCondor daemon logs."""
+
+    name = "get_log_path"
+    description = (
+        "Get the configured filesystem path for HTCondor daemon logs.  "
+        "Returns the path for the specified log type and checks if the file "
+        "exists on the local filesystem."
+    )
+    inputs = {
+        "log_type": {
+            "type": "string",
+            "description": (
+                "Type of log to locate.  Supported types: 'SCHEDD_LOG', "
+                "'STARTD_LOG', 'COLLECTOR_LOG', 'NEGOTIATOR_LOG', 'MASTER_LOG', "
+                "'SHADOW_LOG', 'STARTER_LOG', 'GRIDMANAGER_LOG'."
+            ),
+        },
+    }
+    output_type = "string"
+
+    _VALID_LOG_TYPES = {
+        "SCHEDD_LOG",
+        "STARTD_LOG",
+        "COLLECTOR_LOG",
+        "NEGOTIATOR_LOG",
+        "MASTER_LOG",
+        "SHADOW_LOG",
+        "STARTER_LOG",
+        "GRIDMANAGER_LOG",
+    }
+
+    def forward(self, log_type: str) -> str:
+        import os
+
+        if log_type not in self._VALID_LOG_TYPES:
+            return json.dumps({
+                "error": (
+                    f"Invalid log_type '{log_type}'.  "
+                    f"Valid types: {sorted(self._VALID_LOG_TYPES)}"
+                )
+            })
+
+        try:
+            log_path = htcondor.param.get(log_type)
+            if log_path is None:
+                return json.dumps({
+                    "log_type": log_type,
+                    "path": None,
+                    "exists": False,
+                    "error": f"Configuration parameter '{log_type}' not set",
+                })
+
+            exists = os.path.exists(log_path)
+            return json.dumps({
+                "log_type": log_type,
+                "path": log_path,
+                "exists": exists,
+            })
+        except Exception as exc:
+            return json.dumps({"error": str(exc), "log_type": log_type})
+
+
+class ReadDaemonLogTool(Tool):
+    """Read lines from an HTCondor daemon log file."""
+
+    name = "read_daemon_log"
+    description = (
+        "Read lines from an HTCondor daemon log file.  Returns the last N "
+        "lines from the log file with optional filtering by regex pattern or "
+        "timestamp.  Useful for debugging daemon behavior and troubleshooting "
+        "job execution issues."
+    )
+    inputs = {
+        "log_path": {
+            "type": "string",
+            "description": (
+                "Full path to the log file to read.  Can be obtained from "
+                "get_log_path or list_available_logs tools, or specified "
+                "directly (e.g. '/var/log/condor/SchedLog')."
+            ),
+        },
+        "lines": {
+            "type": "integer",
+            "description": (
+                "Number of lines to return from the end of the file "
+                "(default: 100).  Similar to 'tail -n' behavior."
+            ),
+            "nullable": True,
+        },
+        "filter_pattern": {
+            "type": "string",
+            "description": (
+                "Optional regex pattern to filter lines.  Only lines matching "
+                "this pattern will be returned.  Example: 'ERROR|WARNING' to "
+                "find error or warning messages."
+            ),
+            "nullable": True,
+        },
+        "start_from": {
+            "type": "string",
+            "description": (
+                "Optional ISO timestamp (e.g. '2026-04-14T10:00:00').  Only "
+                "return lines with timestamps after this time.  Best effort "
+                "parsing of HTCondor log timestamps."
+            ),
+            "nullable": True,
+        },
+    }
+    output_type = "string"
+
+    def forward(
+        self,
+        log_path: str,
+        lines: Optional[int] = None,
+        filter_pattern: Optional[str] = None,
+        start_from: Optional[str] = None,
+    ) -> str:
+        try:
+            num_lines = int(lines) if lines is not None else 100
+
+            # Use the helper function to read the log file
+            result_lines, truncated = _read_log_file_tail(
+                log_path=log_path,
+                num_lines=num_lines,
+                filter_pattern=filter_pattern,
+                start_from=start_from,
+            )
+
+            return json.dumps({
+                "log_path": log_path,
+                "lines": result_lines,
+                "count": len(result_lines),
+                "truncated": truncated,
+            })
+        except FileNotFoundError as exc:
+            return json.dumps({
+                "error": f"File not found: {exc}",
+                "log_path": log_path,
+                "lines": [],
+                "count": 0,
+            })
+        except PermissionError as exc:
+            return json.dumps({
+                "error": f"Permission denied: {exc}",
+                "log_path": log_path,
+                "lines": [],
+                "count": 0,
+            })
+        except ValueError as exc:
+            return json.dumps({
+                "error": f"Invalid parameter: {exc}",
+                "log_path": log_path,
+                "lines": [],
+                "count": 0,
+            })
+        except Exception as exc:
+            return json.dumps({
+                "error": str(exc),
+                "log_path": log_path,
+                "lines": [],
+                "count": 0,
+            })
+
+
+class ListAvailableLogsTool(Tool):
+    """Discover all configured HTCondor daemon logs on the system."""
+
+    name = "list_available_logs"
+    description = (
+        "Discover all configured HTCondor daemon logs by querying the "
+        "HTCondor configuration.  Returns a list of daemon log types, their "
+        "filesystem paths, and whether the files exist.  Useful for finding "
+        "which logs are available for inspection."
+    )
+    inputs = {
+        "include_paths": {
+            "type": "boolean",
+            "description": (
+                "Include filesystem paths in results (default: true).  "
+                "Set to false to only return log types without paths."
+            ),
+            "nullable": True,
+        },
+        "check_existence": {
+            "type": "boolean",
+            "description": (
+                "Check if log files actually exist on the filesystem "
+                "(default: true).  Set to false to skip existence checks."
+            ),
+            "nullable": True,
+        },
+    }
+    output_type = "string"
+
+    _LOG_PARAMS = [
+        "SCHEDD_LOG",
+        "STARTD_LOG",
+        "COLLECTOR_LOG",
+        "NEGOTIATOR_LOG",
+        "MASTER_LOG",
+        "SHADOW_LOG",
+        "STARTER_LOG",
+        "GRIDMANAGER_LOG",
+    ]
+
+    def forward(
+        self,
+        include_paths: Optional[bool] = None,
+        check_existence: Optional[bool] = None,
+    ) -> str:
+        import os
+
+        inc_paths = include_paths if include_paths is not None else True
+        check_exist = check_existence if check_existence is not None else True
+
+        logs = []
+        for log_param in self._LOG_PARAMS:
+            try:
+                log_path = htcondor.param.get(log_param)
+
+                entry = {"type": log_param}
+
+                if inc_paths:
+                    entry["path"] = log_path
+
+                if check_exist and log_path:
+                    entry["exists"] = os.path.exists(log_path)
+                elif check_exist:
+                    entry["exists"] = False
+
+                # Only include if path is configured or if not including paths
+                if log_path or not inc_paths:
+                    logs.append(entry)
+
+            except Exception:
+                # Skip logs that can't be queried
+                continue
+
+        return json.dumps({
+            "logs": logs,
+            "count": len(logs),
+        })

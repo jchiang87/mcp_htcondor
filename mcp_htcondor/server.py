@@ -19,9 +19,12 @@ from mcp.server.fastmcp import FastMCP
 from .htcondor_tools import (
     ActOnJobsTool,
     GetHtcondorConfigTool,
+    GetLogPathTool,
+    ListAvailableLogsTool,
     LocateScheddsTool,
     QueryJobHistoryTool,
     QueryJobsTool,
+    ReadDaemonLogTool,
     ReadJobEventsTool,
     SubmitDagTool,
     SubmitJobTool,
@@ -52,6 +55,9 @@ _act_on_jobs = ActOnJobsTool()
 _locate_schedds = LocateScheddsTool()
 _read_events = ReadJobEventsTool()
 _get_config = GetHtcondorConfigTool()
+_get_log_path = GetLogPathTool()
+_read_daemon_log = ReadDaemonLogTool()
+_list_logs = ListAvailableLogsTool()
 
 # ---------------------------------------------------------------------------
 # MCP tool wrappers
@@ -247,6 +253,77 @@ def get_htcondor_config(
             If not specified, all parameters are returned.
     """
     return _get_config.forward(param_name=param_name)
+
+
+@mcp.tool()
+def get_log_path(
+    log_type: str,
+) -> str:
+    """Get the configured filesystem path for HTCondor daemon logs.
+
+    Returns a JSON object with the log type, path, and existence status.
+
+    Args:
+        log_type: Type of log to locate.  Supported types: 'SCHEDD_LOG',
+            'STARTD_LOG', 'COLLECTOR_LOG', 'NEGOTIATOR_LOG', 'MASTER_LOG',
+            'SHADOW_LOG', 'STARTER_LOG', 'GRIDMANAGER_LOG'.
+    """
+    return _get_log_path.forward(log_type=log_type)
+
+
+@mcp.tool()
+def read_daemon_log(
+    log_path: str,
+    lines: Optional[int] = None,
+    filter_pattern: Optional[str] = None,
+    start_from: Optional[str] = None,
+) -> str:
+    """Read lines from an HTCondor daemon log file.
+
+    Returns a JSON object with the log lines, count, and truncation status.
+
+    Args:
+        log_path: Full path to the log file to read.  Can be obtained from
+            get_log_path or list_available_logs tools, or specified
+            directly (e.g. '/var/log/condor/SchedLog').
+        lines: Number of lines to return from the end of the file
+            (default: 100).  Similar to 'tail -n' behavior.
+        filter_pattern: Optional regex pattern to filter lines.  Only
+            lines matching this pattern will be returned.  Example:
+            'ERROR|WARNING' to find error or warning messages.
+        start_from: Optional ISO timestamp (e.g. '2026-04-14T10:00:00').
+            Only return lines with timestamps after this time.  Best
+            effort parsing of HTCondor log timestamps.
+    """
+    return _read_daemon_log.forward(
+        log_path=log_path,
+        lines=lines,
+        filter_pattern=filter_pattern,
+        start_from=start_from,
+    )
+
+
+@mcp.tool()
+def list_available_logs(
+    include_paths: Optional[bool] = None,
+    check_existence: Optional[bool] = None,
+) -> str:
+    """Discover all configured HTCondor daemon logs on the system.
+
+    Returns a JSON object with a list of daemon logs, their paths, and
+    existence status.
+
+    Args:
+        include_paths: Include filesystem paths in results (default: true).
+            Set to false to only return log types without paths.
+        check_existence: Check if log files actually exist on the
+            filesystem (default: true).  Set to false to skip existence
+            checks.
+    """
+    return _list_logs.forward(
+        include_paths=include_paths,
+        check_existence=check_existence,
+    )
 
 
 # ---------------------------------------------------------------------------
