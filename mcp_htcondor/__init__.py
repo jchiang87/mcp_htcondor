@@ -13,6 +13,7 @@ from .htcondor_tools import (
     SubmitDagTool,
     SubmitJobTool,
 )
+from .rag_tool import SearchHTCondorDocsTool
 
 __all__ = [
     "QueryJobsTool",
@@ -26,4 +27,5 @@ __all__ = [
     "GetLogPathTool",
     "ReadDaemonLogTool",
     "ListAvailableLogsTool",
+    "SearchHTCondorDocsTool",
 ]

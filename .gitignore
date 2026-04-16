@@ -205,3 +205,6 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# HTCondor docs RAG index (regenerate with scripts/ingest_docs.py)
+data/

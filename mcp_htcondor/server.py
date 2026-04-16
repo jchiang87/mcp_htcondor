@@ -29,6 +29,7 @@ from .htcondor_tools import (
     SubmitDagTool,
     SubmitJobTool,
 )
+from .rag_tool import SearchHTCondorDocsTool
 
 # ---------------------------------------------------------------------------
 # Server
@@ -36,7 +37,7 @@ from .htcondor_tools import (
 
 mcp = FastMCP(
     "htcondor",
-    description=(
+    instructions=(
         "HTCondor job scheduler tools.  Provides access to the HTCondor "
         "Python bindings for querying jobs, submitting workflows, managing "
         "job state, reading event logs, and inspecting configuration."
@@ -58,6 +59,7 @@ _get_config = GetHtcondorConfigTool()
 _get_log_path = GetLogPathTool()
 _read_daemon_log = ReadDaemonLogTool()
 _list_logs = ListAvailableLogsTool()
+_search_docs = SearchHTCondorDocsTool()
 
 # ---------------------------------------------------------------------------
 # MCP tool wrappers
@@ -324,6 +326,26 @@ def list_available_logs(
         include_paths=include_paths,
         check_existence=check_existence,
     )
+
+
+@mcp.tool()
+def search_htcondor_docs(
+    query: str,
+    top_k: Optional[int] = None,
+) -> str:
+    """Search the HTCondor documentation using semantic vector search.
+
+    Returns the most relevant documentation excerpts matching the query.
+    Requires the FAISS index to have been built first via:
+        python scripts/ingest_docs.py
+
+    Args:
+        query: Natural-language question or keyword query about HTCondor,
+            e.g. 'how do I submit a job', 'ClassAd match expressions',
+            'configure the SCHEDD daemon'.
+        top_k: Number of results to return (default 5, max 20).
+    """
+    return _search_docs.forward(query=query, top_k=top_k)
 
 
 # ---------------------------------------------------------------------------

@@ -9,6 +9,11 @@ dependencies = [
     "htcondor>=24.0",
     "mcp[cli]>=1.0",
     "smolagents>=1.0",
+    "langgraph>=0.2.0",
+    "langchain-anthropic>=0.1.0",
+    "langchain-core>=0.3.0",
+    "faiss-cpu>=1.7",
+    "sentence-transformers>=2.0",
 ]
 
 [project.optional-dependencies]
