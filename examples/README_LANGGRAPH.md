@@ -27,12 +27,11 @@ job_agent = CodeAgent(
 
 **LangGraph (New):**
 ```python
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 
-agent_executor = create_react_agent(
+agent_executor = create_agent(
     model,
     langchain_tools,
-    state_modifier=system_message,
 )
 ```
 
