@@ -36,7 +36,7 @@ from .htcondor_tools import (
 
 mcp = FastMCP(
     "htcondor",
-    description=(
+    instructions=(
         "HTCondor job scheduler tools.  Provides access to the HTCondor "
         "Python bindings for querying jobs, submitting workflows, managing "
         "job state, reading event logs, and inspecting configuration."

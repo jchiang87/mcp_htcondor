@@ -9,7 +9,7 @@ from typing import Annotated
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.tools import tool
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 
 from mcp_htcondor import (
     LocateScheddsTool,
@@ -21,6 +21,10 @@ from mcp_htcondor import (
     GetLogPathTool,
     ReadDaemonLogTool,
 )
+
+from models import get_api_key
+
+_BASE_URL = "https://aiapi-prod.stanford.edu/"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -110,8 +114,11 @@ def main():
     langchain_tools = [smolagents_tool_to_langchain(t) for t in smolagent_tools]
 
     # Initialize the Claude model via LangChain
+    model_name = "claude-4-5-sonnet"
     model = ChatAnthropic(
-        model="claude-4-5-sonnet",
+        model=model_name,
+        api_key=get_api_key(model_name),
+        base_url=_BASE_URL,
         temperature=0,
     )
 
@@ -132,10 +139,10 @@ Be thorough but concise in your analysis."""
 
     # Create the ReAct agent using LangGraph's create_react_agent
     logger.info("Creating LangGraph agent...")
-    agent_executor = create_react_agent(
+    agent_executor = create_agent(
         model,
         langchain_tools,
-        state_modifier=system_message,
+#        state_modifier=system_message,
     )
 
     # Run the agent with the user query
