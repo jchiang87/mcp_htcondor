@@ -24,6 +24,7 @@ dev = [
 
 [project.scripts]
 mcp-htcondor = "mcp_htcondor.server:run"
+mcp-htcondor-agent = "mcp_htcondor.agent_server:run"
 
 [build-system]
 requires = ["setuptools>=61"]
