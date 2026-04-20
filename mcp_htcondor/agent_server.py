@@ -8,9 +8,10 @@ Run:
 """
 from __future__ import annotations
 
+import json
 import logging
+from pathlib import Path
 
-import yaml
 from dotenv import dotenv_values
 from mcp import StdioServerParameters
 from mcp.server.fastmcp import FastMCP
@@ -34,12 +35,14 @@ logging.getLogger("smolagents").setLevel(logging.FATAL)
 # ---------------------------------------------------------------------------
 
 def _get_model() -> OpenAIServerModel:
-    with open("/sdf/home/j/jchiang/.ai_api_keys") as f:
-        api_key = yaml.safe_load(f)["us.anthropic.claude-sonnet-4-6"]
+    settings = json.loads(
+        (Path("~/.claude/settings.json").expanduser()).read_text()
+    )
+    env = settings["env"]
     return OpenAIServerModel(
-        model_id="us.anthropic.claude-sonnet-4-6",
-        api_base="https://ai-api.slac.stanford.edu",
-        api_key=api_key,
+        model_id=env["ANTHROPIC_DEFAULT_SONNET_MODEL"],
+        api_base=env["ANTHROPIC_BASE_URL"],
+        api_key=env["ANTHROPIC_AUTH_TOKEN"],
     )
 
 
