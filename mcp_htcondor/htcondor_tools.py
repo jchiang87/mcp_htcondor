@@ -7,8 +7,29 @@ agent or exposed via an MCP server.
 
 from __future__ import annotations
 
+import functools
 import json
+import os
+from pathlib import Path
 from typing import Optional
+
+
+def track_calls(tool_name: str):
+    def decorator(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            stats_file = Path.cwd() / "tool_call_counts.json"
+            try:
+                counts = json.loads(stats_file.read_text()) if stats_file.exists() else {}
+            except (json.JSONDecodeError, OSError):
+                counts = {}
+            counts[tool_name] = counts.get(tool_name, 0) + 1
+            tmp = stats_file.with_suffix(".tmp")
+            tmp.write_text(json.dumps(counts, indent=2))
+            os.replace(tmp, stats_file)
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
 
 import classad
 import htcondor
@@ -178,6 +199,7 @@ class QueryJobsTool(Tool):
     }
     output_type = "string"
 
+    @track_calls("query_jobs")
     def forward(
         self,
         constraint: Optional[str] = None,
@@ -241,6 +263,7 @@ class QueryJobHistoryTool(Tool):
     }
     output_type = "string"
 
+    @track_calls("query_job_history")
     def forward(
         self,
         constraint: Optional[str] = None,
@@ -292,6 +315,7 @@ class SubmitJobTool(Tool):
     }
     output_type = "string"
 
+    @track_calls("submit_job")
     def forward(
         self,
         submit_description: dict,
@@ -341,6 +365,7 @@ class SubmitDagTool(Tool):
     }
     output_type = "string"
 
+    @track_calls("submit_dag")
     def forward(
         self,
         dag_file: str,
@@ -404,6 +429,7 @@ class ActOnJobsTool(Tool):
         "VacateFast": htcondor.JobAction.VacateFast,
     }
 
+    @track_calls("act_on_jobs")
     def forward(
         self,
         action: str,
@@ -457,6 +483,7 @@ class LocateScheddsTool(Tool):
     }
     output_type = "string"
 
+    @track_calls("locate_schedds")
     def forward(
         self,
         schedd_name: Optional[str] = None,
@@ -503,6 +530,7 @@ class ReadJobEventsTool(Tool):
     }
     output_type = "string"
 
+    @track_calls("read_job_events")
     def forward(
         self,
         log_file: str,
@@ -557,6 +585,7 @@ class GetHtcondorConfigTool(Tool):
     }
     output_type = "string"
 
+    @track_calls("get_htcondor_config")
     def forward(self, param_name: Optional[str] = None) -> str:
         try:
             if param_name:
@@ -599,6 +628,7 @@ class GetLogPathTool(Tool):
         "GRIDMANAGER_LOG",
     }
 
+    @track_calls("get_log_path")
     def forward(self, log_type: str) -> str:
         import os
 
@@ -678,6 +708,7 @@ class ReadDaemonLogTool(Tool):
     }
     output_type = "string"
 
+    @track_calls("read_daemon_log")
     def forward(
         self,
         log_path: str,
@@ -773,6 +804,7 @@ class ListAvailableLogsTool(Tool):
         "GRIDMANAGER_LOG",
     ]
 
+    @track_calls("list_available_logs")
     def forward(
         self,
         include_paths: Optional[bool] = None,
