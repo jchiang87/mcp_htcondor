@@ -27,6 +27,8 @@ from .htcondor_tools import (
     ReadDaemonLogTool,
     ReadJobEventsTool,
 )
+from .rag_tool import SearchHTCondorDocsTool
+
 
 logging.getLogger("smolagents").setLevel(logging.FATAL)
 
@@ -67,6 +69,7 @@ def _get_agent() -> CodeAgent:
         ListAvailableLogsTool(),
         GetLogPathTool(),
         ReadDaemonLogTool(),
+        SearchHTCondorDocsTool(),
     ]
 
     env = dotenv_values("/sdf/home/j/jchiang/.config/slurm-mcp/.env")
