@@ -17,10 +17,16 @@ import json
 import os
 from pathlib import Path
 from typing import Any
-
 import faiss
 import numpy as np
 from smolagents import Tool
+from .utils import track_calls
+
+
+__all__ = (
+    "SearchHTCondorDocTools",
+)
+
 
 # ---------------------------------------------------------------------------
 # Index location
@@ -96,6 +102,7 @@ class SearchHTCondorDocsTool(Tool):
     }
     output_type = "string"
 
+    @track_calls("search_htcondor_docs")
     def forward(self, query: str, top_k: int | None = 5) -> str:
         if not query or not query.strip():
             return json.dumps({"error": "query must not be empty"})
