@@ -37,7 +37,7 @@ The project has two layers: **smolagents Tool classes** that wrap HTCondor Pytho
 
 **`mcp_htcondor/server.py`** — FastMCP server named `"htcondor"`. Instantiates all 11 tools as module-level singletons and wraps each in a thin `@mcp.tool()` function that delegates to `tool.forward()`. Uses stdio transport.
 
-**`mcp_htcondor/agent_server.py`** — FastMCP server exposing a single `run_query(query)` MCP tool. Internally runs a `smolagents` `CodeAgent` with all HTCondor tools plus Slurm tools loaded via `MCPClient`. The agent is lazily initialized as a singleton. Reads API credentials from `~/.ai_api_keys`. Uses `claude-sonnet-4-6` via a custom Anthropic-compatible API endpoint.
+**`mcp_htcondor/agent_server.py`** — FastMCP server exposing a single `run_query(query)` MCP tool. Internally runs a `smolagents` `CodeAgent` with the read-only HTCondor tools (the three mutating tools — SubmitJob, SubmitDag, ActOnJobs — are intentionally excluded) plus Slurm tools loaded via `MCPClient`. The agent is lazily initialized as a singleton. Reads the model config from `~/.claude/settings.json`. Uses `claude-sonnet-4-6` via a custom Anthropic-compatible API endpoint.
 
 **`mcp_htcondor/rag_tool.py`** — `SearchHTCondorDocsTool` implements semantic search over HTCondor documentation. Uses `all-MiniLM-L6-v2` embeddings and a FAISS `IndexFlatIP` (cosine similarity). Index lives in `data/htcondor_docs/` (overridable via `HTCONDOR_DOCS_DIR` env var) and must be built with `scripts/ingest_docs.py` before use.
 
@@ -61,7 +61,9 @@ For the agent server, a `CodeAgent` sits between FastMCP and the tools, allowing
 - **JSON-only output**: All `Tool.forward()` methods return JSON strings so results are MCP-compatible and agent-parseable.
 - **Dual-use tools**: Every tool works standalone (`tool.forward(...)`) and via the MCP server — see `examples/use_tools_directly.py` for direct usage patterns.
 - **ClassAd serialization**: HTCondor `ClassAd` objects are converted to plain dicts via `_ad_to_dict()` before JSON serialization.
+- **Error handling**: All `forward()` methods catch exceptions and return `{"error": "..."}` JSON — no exceptions propagate to the MCP layer.
+- **Call tracking**: New tools should apply `@track_calls(tool_name)` from `mcp_htcondor/utils.py` on their `forward()` method; this appends usage counts to `tool_call_counts.json` in the working directory.
 
 ## Documentation Index
 
-The RAG tool (`SearchHTCondorDocsTool`) requires a pre-built FAISS index. `scripts/ingest_docs.py` sparse-clones the `htcondor/htcondor` repo (docs only), parses RST files into sections, chunks them (512 tokens, 64 overlap), embeds with sentence-transformers, and writes `data/htcondor_docs/index.faiss` + `chunks.json`. The `data/` directory is gitignored.
+The RAG tool (`SearchHTCondorDocsTool`) requires a pre-built FAISS index. `scripts/ingest_docs.py` sparse-clones the `htcondor/htcondor` repo (docs only), parses RST files into sections, chunks them (512 tokens, 64 overlap), embeds with sentence-transformers, and writes `data/htcondor_docs/index.faiss` + `chunks.json`. The `data/` directory is gitignored. Pass `--clone-dir /path/to/existing/htcondor` to skip the sparse clone step.
