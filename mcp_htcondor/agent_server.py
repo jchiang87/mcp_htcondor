@@ -128,6 +128,8 @@ def run_query(query: str) -> str:
         result = _get_agent().run(query)
         return str(result)
     except Exception as exc:
+        global _agent
+        _agent = None
         return f"Error: {exc}"
 
 
