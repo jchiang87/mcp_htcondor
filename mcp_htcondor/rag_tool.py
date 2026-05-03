@@ -86,8 +86,10 @@ class SearchHTCondorDocsTool(Tool):
     description = (
         "Search the HTCondor documentation using semantic (vector) search. "
         "Returns the most relevant documentation excerpts for a given query. "
-        "Use this to answer questions about HTCondor configuration, job submission, "
-        "ClassAd expressions, daemons, APIs, and administrator/user procedures."
+        "Use this as the primary source to answer questions about HTCondor "
+        "configuration, job submission, ClassAd expressions, daemons, APIs, "
+        "and administrator/user procedures.  Call this tool before attempting "
+        "any other lookup."
     )
     inputs = {
         "query": {

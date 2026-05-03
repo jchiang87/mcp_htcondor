@@ -1,7 +1,7 @@
 """FastMCP server that exposes a smolagents CodeAgent as a single MCP tool.
 
-The agent has access to all HTCondor tools and the slurm-mcp tools,
-enabling natural-language queries about S3DF cluster job state.
+The agent has access to all HTCondor tools, enabling natural-language
+queries about S3DF cluster job state.
 
 Run:
     mcp-htcondor-agent      # via installed entry-point (stdio transport)
@@ -12,10 +12,8 @@ import json
 import logging
 from pathlib import Path
 
-from dotenv import dotenv_values
-from mcp import StdioServerParameters
 from mcp.server.fastmcp import FastMCP
-from smolagents import CodeAgent, MCPClient, OpenAIServerModel
+from smolagents import CodeAgent, OpenAIServerModel
 
 from .htcondor_tools import (
     GetHtcondorConfigTool,
@@ -35,6 +33,7 @@ logging.getLogger("smolagents").setLevel(logging.FATAL)
 # ---------------------------------------------------------------------------
 # Model
 # ---------------------------------------------------------------------------
+
 
 def _get_model() -> OpenAIServerModel:
     settings = json.loads(
@@ -72,23 +71,19 @@ def _get_agent() -> CodeAgent:
         SearchHTCondorDocsTool(),
     ]
 
-    env = dotenv_values("/sdf/home/j/jchiang/.config/slurm-mcp/.env")
-    env["FASTMCP_SHOW_SERVER_BANNER"] = "0"
-    mcp_client = MCPClient(
-        StdioServerParameters(command="slurm-mcp", env=env),
-        structured_output=True,
-    )
-    tools.extend(mcp_client.get_tools())
-
     _agent = CodeAgent(
         model=_get_model(),
         tools=tools,
         additional_authorized_imports=["os", "glob", "pandas", "json"],
         name="s3df_cluster_inspector",
-        description="Inspects the state of HTCondor and Slurm jobs running at S3DF.",
+        description="Inspects the state of HTCondor jobs running at S3DF.",
         instructions=(
             "Aggregate information on HTCondor jobs running on the various "
-            "schedds, and Slurm jobs on the S3DF cluster. "
+            "schedds at USDF."
+            "When you need information about HTCondor configuration, "
+            "behavior, or syntax, call the search_htcondor_docs tool first. "
+            "Only fall back to other sources if the search_htcondor_docs tool "
+            "returns insufficient results."
             "Answer concisely with relevant numbers and summaries."
         ),
         verbosity_level=0,
@@ -103,7 +98,7 @@ def _get_agent() -> CodeAgent:
 mcp = FastMCP(
     "s3df-cluster-inspector",
     instructions=(
-        "A CodeAgent that inspects HTCondor and Slurm job state at S3DF. "
+        "A CodeAgent that inspects HTCondor job state at S3DF. "
         "Pass a natural-language query to run_query and receive a summary."
     ),
 )
@@ -113,8 +108,8 @@ mcp = FastMCP(
 def run_query(query: str) -> str:
     """Run a natural-language query against the S3DF cluster inspector agent.
 
-    The agent has access to HTCondor tools (query jobs, view logs, locate
-    schedds) and Slurm tools (list jobs, check GPU availability, read logs).
+    The agent has access to HTCondor tools that enable it to query jobs,
+    view logs, locate schedds, etc..
     It uses a code-first paradigm: the agent writes and executes Python
     snippets to aggregate and summarise results across both schedulers.
 
@@ -122,7 +117,6 @@ def run_query(query: str) -> str:
         query: Natural-language question about cluster state, e.g.
             'How many jobs are running on each HTCondor schedd?',
             'Are there any held jobs for user jchiang?',
-            'What GPUs are available on the Slurm cluster?'
     """
     try:
         result = _get_agent().run(query)
