@@ -1,4 +1,4 @@
-"""FastMCP server that exposes HTCondor tools defined as smolagents Tools.
+"""MCPServer instance that exposes HTCondor tools defined as smolagents Tools.
 
 Each @mcp.tool() function is a thin wrapper that delegates to the
 corresponding smolagents Tool.forward() method.  The smolagents Tool
@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from .htcondor_tools import (
     ActOnJobsTool,
@@ -35,7 +35,7 @@ from .rag_tool import SearchHTCondorDocsTool
 # Server
 # ---------------------------------------------------------------------------
 
-mcp = FastMCP(
+mcp = MCPServer(
     "htcondor",
     instructions=(
         "HTCondor job scheduler tools.  Provides access to the HTCondor "

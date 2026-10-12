@@ -1,4 +1,4 @@
-"""HTCondor MCP server — smolagents Tool classes and FastMCP server."""
+"""HTCondor MCP server — smolagents Tool classes and MCPServer."""
 
 from .htcondor_tools import (
     ActOnJobsTool,

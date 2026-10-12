@@ -29,15 +29,15 @@ pytest tests/test_rag_tool.py -v  # single test file
 
 ## Architecture
 
-The project has two layers: **smolagents Tool classes** that wrap HTCondor Python bindings, and **FastMCP servers** that expose those tools via the MCP protocol.
+The project has two layers: **smolagents Tool classes** that wrap HTCondor Python bindings, and **MCPServers** that expose those tools via the MCP protocol.
 
 ### Core Layers
 
 **`mcp_htcondor/htcondor_tools.py`** — 11 smolagents `Tool` subclasses, each wrapping one HTCondor operation (query jobs, submit, hold/release, read logs, etc.). Tools produce JSON string output and can be used standalone via `tool.forward(...)` or through an agent. Helper functions `_locate_schedd()`, `_ad_to_dict()`, and `_read_log_file_tail()` are shared utilities.
 
-**`mcp_htcondor/server.py`** — FastMCP server named `"htcondor"`. Instantiates all 12 tools (11 from `htcondor_tools.py` + `SearchHTCondorDocsTool`) as module-level singletons and wraps each in a thin `@mcp.tool()` function that delegates to `tool.forward()`. Uses stdio transport.
+**`mcp_htcondor/server.py`** — MCPServer server named `"htcondor"`. Instantiates all 12 tools (11 from `htcondor_tools.py` + `SearchHTCondorDocsTool`) as module-level singletons and wraps each in a thin `@mcp.tool()` function that delegates to `tool.forward()`. Uses stdio transport.
 
-**`mcp_htcondor/agent_server.py`** — FastMCP server exposing a single `run_query(query)` MCP tool. Internally runs a `smolagents` `CodeAgent` with the read-only HTCondor tools (the three mutating tools — SubmitJob, SubmitDag, ActOnJobs — are intentionally excluded) plus `SearchHTCondorDocsTool`. The agent is lazily initialized as a singleton. Reads the model config from `~/.claude/settings.json`. Uses `claude-sonnet-4-6` via a custom Anthropic-compatible API endpoint.
+**`mcp_htcondor/agent_server.py`** — MCPServer server exposing a single `run_query(query)` MCP tool. Internally runs a `smolagents` `CodeAgent` with the read-only HTCondor tools (the three mutating tools — SubmitJob, SubmitDag, ActOnJobs — are intentionally excluded) plus `SearchHTCondorDocsTool`. The agent is lazily initialized as a singleton. Reads the model config from `~/.claude/settings.json`. Uses `claude-sonnet-4-6` via a custom Anthropic-compatible API endpoint.
 
 **`mcp_htcondor/rag_tool.py`** — `SearchHTCondorDocsTool` implements semantic search over HTCondor documentation. Uses `all-MiniLM-L6-v2` embeddings and a FAISS `IndexFlatIP` (cosine similarity). Index lives in `data/htcondor_docs/` (overridable via `HTCONDOR_DOCS_DIR` env var) and must be built with `scripts/ingest_docs.py` before use.
 
@@ -46,14 +46,14 @@ The project has two layers: **smolagents Tool classes** that wrap HTCondor Pytho
 ```
 MCP Client (Claude, IDE)
     ↓ MCP protocol (stdio)
-FastMCP server (server.py or agent_server.py)
+MCPServer server (server.py or agent_server.py)
     ↓ tool.forward() calls
 smolagents Tool classes (htcondor_tools.py)
     ↓ htcondor Python bindings
 HTCondor daemons (schedd, collector, etc.)
 ```
 
-For the agent server, a `CodeAgent` sits between FastMCP and the tools, allowing multi-step reasoning over HTCondor + Slurm state before returning a natural-language answer.
+For the agent server, a `CodeAgent` sits between MCPServer and the tools, allowing multi-step reasoning over HTCondor + Slurm state before returning a natural-language answer.
 
 ### Key Design Decisions
 

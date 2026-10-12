@@ -1,4 +1,4 @@
-"""FastMCP server that exposes a smolagents CodeAgent as a single MCP tool.
+"""MCPServer instance that exposes a smolagents CodeAgent as a single MCP tool.
 
 The agent has access to all HTCondor tools, enabling natural-language
 queries about S3DF cluster job state.
@@ -12,7 +12,7 @@ import json
 import logging
 from pathlib import Path
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from smolagents import CodeAgent, OpenAIServerModel
 
 from .htcondor_tools import (
@@ -92,10 +92,10 @@ def _get_agent() -> CodeAgent:
 
 
 # ---------------------------------------------------------------------------
-# FastMCP server
+# MCPServer instance
 # ---------------------------------------------------------------------------
 
-mcp = FastMCP(
+mcp = MCPServer(
     "s3df-cluster-inspector",
     instructions=(
         "A CodeAgent that inspects HTCondor job state at S3DF. "
